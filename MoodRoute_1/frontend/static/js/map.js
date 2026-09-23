@@ -26,11 +26,10 @@ const MapManager = {
         // OpenStreetMap France (Humanitarian) tiles — completely free,
         // no API key, no IP restrictions, works on both local and Render.
         // Uses a different subdomain from the main OSM servers that blocked us.
-        L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', {
-            attribution: '&copy; OpenStreetMap France | &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-            subdomains: 'abc',
-            maxZoom: 20
-        }).addTo(this.map);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors',
+    maxZoom: 19
+}).addTo(this.map);
 
         this.boundaryLayer = L.layerGroup().addTo(this.map);
         this.routeLayer    = L.layerGroup().addTo(this.map);
