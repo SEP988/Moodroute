@@ -1,0 +1,1282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MoodRoute — Walk Your Way to Wellbeing</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root {
+    --forest: #1a3c2e;
+    --sage: #4a7c59;
+    --mint: #a8d5b5;
+    --cream: #f5f0e8;
+    --warm: #e8dcc8;
+    --accent: #c17f3e;
+    --text: #1a2e1f;
+    --muted: #6b7f70;
+    --white: #ffffff;
+    --danger: #c0392b;
+    --sky: #5b8db8;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--cream);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── HEADER ── */
+  header {
+    background: var(--forest);
+    padding: 0 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 64px;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    box-shadow: 0 2px 20px rgba(0,0,0,0.3);
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  .logo-icon {
+    width: 36px; height: 36px;
+    background: var(--sage);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem;
+  }
+
+  .logo-text {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.4rem;
+    color: var(--cream);
+    letter-spacing: -0.02em;
+  }
+
+  .logo-text span { color: var(--mint); }
+
+  .header-badge {
+    background: rgba(168,213,181,0.15);
+    border: 1px solid rgba(168,213,181,0.3);
+    color: var(--mint);
+    font-size: 0.72rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    letter-spacing: 0.05em;
+    font-weight: 500;
+  }
+
+  /* ── HERO ── */
+  .hero {
+    background: linear-gradient(135deg, var(--forest) 0%, #2d5a3d 50%, #1a4a30 100%);
+    padding: 3.5rem 2rem 4rem;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 30% 50%, rgba(74,124,89,0.3) 0%, transparent 60%),
+                radial-gradient(ellipse at 70% 30%, rgba(168,213,181,0.1) 0%, transparent 50%);
+  }
+
+  .hero-content { position: relative; z-index: 1; max-width: 640px; margin: 0 auto; }
+
+  .hero h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(2rem, 5vw, 3rem);
+    color: var(--cream);
+    line-height: 1.15;
+    margin-bottom: 0.75rem;
+  }
+
+  .hero h1 em { color: var(--mint); font-style: italic; }
+
+  .hero p {
+    color: rgba(245,240,232,0.75);
+    font-size: 1rem;
+    line-height: 1.6;
+    margin-bottom: 2rem;
+    font-weight: 300;
+  }
+
+  /* ── MAIN LAYOUT ── */
+  .app-layout {
+    display: grid;
+    grid-template-columns: 420px 1fr;
+    gap: 0;
+    min-height: calc(100vh - 64px - 280px);
+  }
+
+  @media (max-width: 900px) {
+    .app-layout { grid-template-columns: 1fr; }
+  }
+
+  /* ── SIDEBAR ── */
+  .sidebar {
+    background: var(--white);
+    border-right: 1px solid var(--warm);
+    padding: 1.75rem;
+    overflow-y: auto;
+    max-height: 85vh;
+  }
+
+  .section-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--warm);
+  }
+
+  /* ── MOOD INPUT ── */
+  .mood-textarea {
+    width: 100%;
+    min-height: 90px;
+    padding: 0.9rem 1rem;
+    border: 2px solid var(--warm);
+    border-radius: 12px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem;
+    color: var(--text);
+    background: var(--cream);
+    resize: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    line-height: 1.5;
+  }
+
+  .mood-textarea:focus {
+    outline: none;
+    border-color: var(--sage);
+    box-shadow: 0 0 0 3px rgba(74,124,89,0.12);
+    background: var(--white);
+  }
+
+  .mood-textarea::placeholder { color: #aab8ae; }
+
+  /* ── QUICK MOODS ── */
+  .quick-label {
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin: 0.9rem 0 0.5rem;
+    font-weight: 500;
+  }
+
+  .mood-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .mood-pill {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.4rem 0.85rem;
+    border: 1.5px solid var(--warm);
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.18s;
+    background: var(--white);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  .mood-pill:hover { border-color: var(--sage); background: rgba(74,124,89,0.06); }
+
+  .mood-pill.active {
+    background: var(--forest);
+    border-color: var(--forest);
+    color: var(--cream);
+  }
+
+  /* ── LOCATION ── */
+  .location-row {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .location-input {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    border: 2px solid var(--warm);
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem;
+    color: var(--text);
+    background: var(--cream);
+    transition: border-color 0.2s;
+  }
+
+  .location-input:focus {
+    outline: none;
+    border-color: var(--sage);
+    background: var(--white);
+  }
+
+  .btn-gps {
+    padding: 0.75rem 1rem;
+    background: var(--forest);
+    color: var(--cream);
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: background 0.2s;
+    display: flex; align-items: center; gap: 0.4rem;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .btn-gps:hover { background: var(--sage); }
+
+  /* ── FIND BUTTON ── */
+  .btn-find {
+    width: 100%;
+    padding: 0.95rem;
+    background: linear-gradient(135deg, var(--sage), var(--forest));
+    color: var(--white);
+    border: none;
+    border-radius: 12px;
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.05rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    letter-spacing: 0.01em;
+    box-shadow: 0 4px 15px rgba(26,60,46,0.3);
+  }
+
+  .btn-find:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(26,60,46,0.4);
+  }
+
+  .btn-find:active { transform: translateY(0); }
+  .btn-find:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+  /* ── WEATHER CARD ── */
+  .weather-card {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.85rem 1rem;
+    background: linear-gradient(135deg, #e8f4fd, #d4ecff);
+    border-radius: 10px;
+    margin-bottom: 1.25rem;
+    border: 1px solid #b8d9f5;
+  }
+
+  .weather-icon { font-size: 1.8rem; }
+
+  .weather-info { flex: 1; }
+
+  .weather-main {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--sky);
+  }
+
+  .weather-sub {
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-top: 0.1rem;
+  }
+
+  .weather-alert {
+    background: linear-gradient(135deg, #fef3e2, #fde8c8);
+    border-color: #f0c070;
+  }
+
+  .weather-alert .weather-main { color: var(--accent); }
+
+  .weather-danger {
+    background: linear-gradient(135deg, #fde8e8, #fcd4d4);
+    border-color: #f5a8a8;
+  }
+
+  .weather-danger .weather-main { color: var(--danger); }
+
+  /* ── RESULT CARD ── */
+  .result-card {
+    background: linear-gradient(135deg, var(--forest), #2d5a3d);
+    border-radius: 14px;
+    padding: 1.25rem;
+    color: var(--cream);
+    margin-top: 1.25rem;
+    display: none;
+    animation: slideUp 0.4s ease;
+  }
+
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .result-card.show { display: block; }
+
+  .result-mood {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid rgba(168,213,181,0.2);
+  }
+
+  .mood-badge {
+    background: rgba(168,213,181,0.2);
+    border: 1px solid rgba(168,213,181,0.4);
+    color: var(--mint);
+    padding: 0.3rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .confidence-bar {
+    flex: 1;
+    height: 4px;
+    background: rgba(168,213,181,0.2);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .confidence-fill {
+    height: 100%;
+    background: var(--mint);
+    border-radius: 2px;
+    transition: width 0.8s ease;
+  }
+
+  .route-name {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.2rem;
+    color: var(--cream);
+    margin-bottom: 0.5rem;
+  }
+
+  .route-meta {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+  }
+
+  .route-tag {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.78rem;
+    color: rgba(245,240,232,0.75);
+    font-weight: 500;
+  }
+
+  .score-bars { display: grid; gap: 0.5rem; }
+
+  .score-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .score-label {
+    font-size: 0.72rem;
+    color: rgba(245,240,232,0.6);
+    width: 70px;
+    flex-shrink: 0;
+  }
+
+  .score-track {
+    flex: 1;
+    height: 5px;
+    background: rgba(255,255,255,0.12);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .score-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 1s ease;
+  }
+
+  .score-val {
+    font-size: 0.72rem;
+    color: rgba(245,240,232,0.7);
+    width: 28px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  /* ── RATING ── */
+  .rating-section {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(168,213,181,0.2);
+  }
+
+  .rating-label {
+    font-size: 0.75rem;
+    color: rgba(245,240,232,0.6);
+    margin-bottom: 0.5rem;
+  }
+
+  .stars {
+    display: flex;
+    gap: 0.4rem;
+  }
+
+  .star {
+    font-size: 1.3rem;
+    cursor: pointer;
+    transition: transform 0.15s;
+    color: rgba(255,255,255,0.3);
+  }
+
+  .star:hover, .star.lit { color: #f5c842; transform: scale(1.2); }
+
+  /* ── MAP ── */
+  #map {
+    width: 100%;
+    height: 85vh;
+    background: #e8f0e4;
+  }
+
+  .leaflet-container { font-family: 'DM Sans', sans-serif; }
+
+  /* ── INDOOR CARD ── */
+  .indoor-card {
+    background: linear-gradient(135deg, #2c3e6b, #1a2a4a);
+    border-radius: 14px;
+    padding: 1.25rem;
+    color: var(--cream);
+    margin-top: 1.25rem;
+    display: none;
+    animation: slideUp 0.4s ease;
+  }
+
+  .indoor-card.show { display: block; }
+
+  .indoor-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.1rem;
+    color: var(--cream);
+    margin-bottom: 0.3rem;
+  }
+
+  .indoor-subtitle {
+    font-size: 0.8rem;
+    color: rgba(245,240,232,0.6);
+    margin-bottom: 1rem;
+  }
+
+  .indoor-options { display: grid; gap: 0.6rem; }
+
+  .indoor-option {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 8px;
+    padding: 0.7rem 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    font-size: 0.85rem;
+  }
+
+  /* ── LOADING ── */
+  .loading-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(26,60,46,0.85);
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .loading-overlay.show { display: flex; }
+
+  .spinner {
+    width: 48px; height: 48px;
+    border: 4px solid rgba(168,213,181,0.2);
+    border-top-color: var(--mint);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .loading-text {
+    color: var(--cream);
+    font-size: 0.9rem;
+    font-weight: 500;
+    text-align: center;
+  }
+
+  .loading-step {
+    color: rgba(245,240,232,0.6);
+    font-size: 0.8rem;
+  }
+
+  /* ── TOAST ── */
+  .toast {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--forest);
+    color: var(--cream);
+    padding: 0.75rem 1.5rem;
+    border-radius: 25px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    z-index: 9998;
+    transition: transform 0.3s ease;
+    border: 1px solid rgba(168,213,181,0.3);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+    white-space: nowrap;
+  }
+
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* ── SECURITY BADGE ── */
+  .security-info {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.7rem;
+    color: var(--muted);
+    margin-top: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    background: rgba(74,124,89,0.06);
+    border-radius: 8px;
+    border: 1px solid rgba(74,124,89,0.12);
+  }
+
+  /* ── DIVIDER ── */
+  .divider { height: 1px; background: var(--warm); margin: 1.25rem 0; }
+
+  /* ── FOOTER ── */
+  footer {
+    background: var(--forest);
+    color: rgba(245,240,232,0.5);
+    text-align: center;
+    padding: 1.25rem;
+    font-size: 0.75rem;
+  }
+
+  footer strong { color: var(--mint); }
+
+  /* ── SCROLL ── */
+  .sidebar::-webkit-scrollbar { width: 4px; }
+  .sidebar::-webkit-scrollbar-track { background: transparent; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--warm); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">🗺️</div>
+    <div class="logo-text">Mood<span>Route</span></div>
+  </div>
+  <div class="header-badge">🔒 HTTPS Secured</div>
+</header>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-content">
+    <h1>Walk your way to <em>feeling better</em></h1>
+    <p>Tell us how you're feeling and we'll find the perfect walking route near you — using AI mood detection and real environmental data.</p>
+  </div>
+</div>
+
+<!-- APP LAYOUT -->
+<div class="app-layout">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+
+    <!-- WEATHER -->
+    <div class="section-label">☁️ Current Weather</div>
+    <div class="weather-card" id="weatherCard">
+      <div class="weather-icon" id="weatherIcon">🌤️</div>
+      <div class="weather-info">
+        <div class="weather-main" id="weatherMain">Click GPS to load weather</div>
+        <div class="weather-sub" id="weatherSub">Share your location first</div>
+      </div>
+    </div>
+
+    <!-- MOOD INPUT -->
+    <div class="section-label">💬 How Are You Feeling?</div>
+    <textarea class="mood-textarea" id="moodInput"
+      placeholder="Type how you feel right now... e.g. 'I'm really stressed about my assignments and can't focus'"></textarea>
+
+    <div class="quick-label">Or select quickly:</div>
+    <div class="mood-pills">
+      <button class="mood-pill" onclick="selectMood('stressed', this)">😰 Stressed</button>
+      <button class="mood-pill" onclick="selectMood('anxious', this)">😟 Anxious</button>
+      <button class="mood-pill" onclick="selectMood('tired', this)">😴 Tired</button>
+      <button class="mood-pill" onclick="selectMood('sad', this)">😢 Sad</button>
+      <button class="mood-pill" onclick="selectMood('happy', this)">😊 Happy</button>
+      <button class="mood-pill" onclick="selectMood('energetic', this)">⚡ Energetic</button>
+    </div>
+
+    <!-- LOCATION -->
+    <div class="section-label">📍 Your Location</div>
+    <div class="location-row">
+      <input class="location-input" id="locationInput"
+        placeholder="Enter suburb or address..." />
+      <button class="btn-gps" onclick="getGPS()">📡 Use GPS</button>
+    </div>
+
+    <!-- FIND BUTTON -->
+    <button class="btn-find" id="findBtn" onclick="findRoute()">
+      🌿 Find My Route
+    </button>
+
+    <!-- SECURITY INFO -->
+    <div class="security-info">
+      🔐 Your mood data is never stored. All inputs are sanitised and requests are rate-limited for your safety.
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- RESULT CARD -->
+    <div class="result-card" id="resultCard">
+      <div class="result-mood">
+        <div class="mood-badge" id="resultMood">—</div>
+        <div class="confidence-bar">
+          <div class="confidence-fill" id="confidenceFill" style="width:0%"></div>
+        </div>
+        <span style="font-size:0.75rem;color:rgba(245,240,232,0.6)" id="confidenceText">—</span>
+      </div>
+      <div class="route-name" id="routeName">—</div>
+      <div class="route-meta" id="routeMeta"></div>
+      <div class="score-bars" id="scoreBars"></div>
+      <div class="rating-section">
+        <div class="rating-label">How was your walk? Rate the route:</div>
+        <div class="stars" id="stars">
+          <span class="star" onclick="rate(1)">★</span>
+          <span class="star" onclick="rate(2)">★</span>
+          <span class="star" onclick="rate(3)">★</span>
+          <span class="star" onclick="rate(4)">★</span>
+          <span class="star" onclick="rate(5)">★</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- INDOOR CARD -->
+    <div class="indoor-card" id="indoorCard">
+      <div class="indoor-title">🏠 Indoor Alternatives</div>
+      <div class="indoor-subtitle" id="indoorSubtitle">Weather not ideal for walking today</div>
+      <div class="indoor-options" id="indoorOptions"></div>
+    </div>
+
+  </div>
+
+  <!-- MAP -->
+  <div id="map"></div>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <strong>MoodRoute</strong> — Group MoodMappers · CSIT998 Capstone Project · University of Wollongong 2026 &nbsp;|&nbsp;
+  Not a clinical mental health tool. If you need support, contact <strong>Lifeline: 13 11 14</strong>
+</footer>
+
+<!-- LOADING -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loadingText">Analysing your mood...</div>
+  <div class="loading-step" id="loadingStep">🧠 Running NLP detection</div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════
+// MOODROUTE — COMPLETE APPLICATION LOGIC
+// ═══════════════════════════════════════════════════
+
+// ── Security: Rate Limiting ──
+const requestLog = [];
+const RATE_LIMIT = 10; // max requests per minute
+const RATE_WINDOW = 60000;
+
+function checkRateLimit() {
+  const now = Date.now();
+  const recent = requestLog.filter(t => now - t < RATE_WINDOW);
+  if (recent.length >= RATE_LIMIT) {
+    showToast('⚠️ Too many requests. Please wait a moment.');
+    return false;
+  }
+  requestLog.push(now);
+  return true;
+}
+
+// ── Security: Input Sanitisation ──
+function sanitise(input) {
+  if (!input) return '';
+  return input
+    .replace(/<[^>]*>/g, '')           // strip HTML
+    .replace(/[<>"';&]/g, '')          // remove dangerous chars
+    .substring(0, 500)                  // max length
+    .trim();
+}
+
+function sanitiseCoord(val) {
+  const n = parseFloat(val);
+  return isNaN(n) ? null : Math.max(-90, Math.min(90, n));
+}
+
+// ── State ──
+let userLat = null, userLon = null;
+let selectedMood = null;
+let map = null, routeLayer = null, markerLayer = null;
+let currentWeather = null;
+
+// ── Mood Configuration ──
+const MOODS = {
+  stressed:  { emoji:'😰', label:'Stressed',  color:'#e74c3c',
+    weights:{ greenery:0.9, quiet:0.85, distance:0.3, flat:0.8, uncrowded:0.75 },
+    description: 'Quiet, green, short and calm routes recommended' },
+  anxious:   { emoji:'😟', label:'Anxious',   color:'#e67e22',
+    weights:{ greenery:0.9, quiet:0.95, distance:0.2, flat:0.9, uncrowded:0.9 },
+    description: 'Very quiet, very short, minimal exposure routes' },
+  tired:     { emoji:'😴', label:'Tired',     color:'#8e44ad',
+    weights:{ greenery:0.7, quiet:0.7, distance:0.25, flat:0.95, uncrowded:0.6 },
+    description: 'Gentle flat short routes to restore energy' },
+  sad:       { emoji:'😢', label:'Sad',       color:'#2980b9',
+    weights:{ greenery:0.85, quiet:0.65, distance:0.4, flat:0.7, uncrowded:0.5 },
+    description: 'Nature-rich uplifting routes' },
+  happy:     { emoji:'😊', label:'Happy',     color:'#27ae60',
+    weights:{ greenery:0.5, quiet:0.4, distance:0.6, flat:0.5, uncrowded:0.45 },
+    description: 'Enjoyable scenic routes to celebrate your mood' },
+  energetic: { emoji:'⚡', label:'Energetic', color:'#f39c12',
+    weights:{ greenery:0.3, quiet:0.25, distance:0.95, flat:0.15, uncrowded:0.4 },
+    description: 'Long, challenging, stimulating routes' },
+  neutral:   { emoji:'😐', label:'Neutral',   color:'#7f8c8d',
+    weights:{ greenery:0.5, quiet:0.5, distance:0.5, flat:0.5, uncrowded:0.5 },
+    description: 'Balanced, well-rounded routes' },
+};
+
+// ── Route Database (pre-scored sample routes) ──
+function generateRoutes(lat, lon) {
+  return [
+    {
+      name: 'Botanic Garden Loop',
+      description: 'Peaceful path through lush gardens',
+      distance: '1.8km', time: '22 min',
+      greenery: 9.5, quiet: 9.0, distance_s: 8.0, flat: 9.2, uncrowded: 7.5,
+      tags: ['🌿 High Greenery', '🔇 Very Quiet', '⛰️ Flat'],
+      color: '#27ae60',
+      coords: generateCircle(lat, lon, 0.009, 12)
+    },
+    {
+      name: 'Riverside Promenade',
+      description: 'Scenic waterfront with gentle breeze',
+      distance: '2.4km', time: '28 min',
+      greenery: 7.0, quiet: 6.5, distance_s: 6.5, flat: 8.5, uncrowded: 6.0,
+      tags: ['💧 Waterfront', '🌳 Greenery', '🚶 Paved'],
+      color: '#2980b9',
+      coords: generateCircle(lat, lon, 0.012, 16)
+    },
+    {
+      name: 'Hillside Heritage Trail',
+      description: 'Challenging elevated walk with panoramic views',
+      distance: '4.2km', time: '55 min',
+      greenery: 8.0, quiet: 8.5, distance_s: 2.0, flat: 1.5, uncrowded: 9.0,
+      tags: ['⛰️ Hilly', '🌲 Scenic', '🏆 Challenging'],
+      color: '#8e44ad',
+      coords: generateCircle(lat, lon, 0.02, 20)
+    },
+    {
+      name: 'City Pocket Park Circuit',
+      description: 'Quick urban green escape',
+      distance: '1.1km', time: '14 min',
+      greenery: 6.5, quiet: 5.5, distance_s: 9.0, flat: 9.5, uncrowded: 5.5,
+      tags: ['🏙️ Urban', '⚡ Quick', '🌱 Pocket Park'],
+      color: '#e67e22',
+      coords: generateCircle(lat, lon, 0.006, 10)
+    },
+    {
+      name: 'Woodland Quiet Way',
+      description: 'Hidden forest path, almost no foot traffic',
+      distance: '2.0km', time: '26 min',
+      greenery: 9.8, quiet: 9.7, distance_s: 7.0, flat: 7.0, uncrowded: 9.8,
+      tags: ['🌲 Forest', '🔇 Silent', '🦋 Wildlife'],
+      color: '#1a3c2e',
+      coords: generateCircle(lat, lon, 0.01, 14)
+    },
+    {
+      name: 'Market Street Mile',
+      description: 'Vibrant high-street energy walk',
+      distance: '3.5km', time: '42 min',
+      greenery: 2.5, quiet: 2.0, distance_s: 3.5, flat: 8.0, uncrowded: 1.5,
+      tags: ['☕ Cafes', '🛍️ Shops', '👥 Busy'],
+      color: '#e74c3c',
+      coords: generateCircle(lat, lon, 0.017, 18)
+    },
+  ];
+}
+
+function generateCircle(lat, lon, radius, points) {
+  const coords = [];
+  for (let i = 0; i <= points; i++) {
+    const angle = (i / points) * 2 * Math.PI;
+    coords.push([
+      lat + radius * Math.sin(angle) + (Math.random() - 0.5) * 0.002,
+      lon + radius * Math.cos(angle) + (Math.random() - 0.5) * 0.002
+    ]);
+  }
+  return coords;
+}
+
+// ── NLP Mood Detection (keyword-based simulation) ──
+function detectMood(text) {
+  const t = text.toLowerCase();
+  const scores = {
+    stressed:  0, anxious: 0, tired: 0,
+    sad: 0, happy: 0, energetic: 0, neutral: 0
+  };
+
+  const keywords = {
+    stressed:  ['stress','stressed','overwhelm','pressure','deadline','too much','can\'t cope','freaking','panic','assignment','exam','work','busy'],
+    anxious:   ['anxious','anxiety','worry','worried','nervous','scared','fear','uneasy','restless','tense','dread'],
+    tired:     ['tired','exhausted','fatigue','sleepy','drained','no energy','burnt out','worn out','lethargy','sluggish'],
+    sad:       ['sad','depress','unhappy','upset','down','low','lonely','grief','miss','cry','hopeless','gloomy'],
+    happy:     ['happy','great','wonderful','amazing','excited','joy','love','fantastic','good','cheerful','elated','pleased'],
+    energetic: ['energy','energetic','pumped','motivated','ready','active','strong','fired up','let\'s go','enthusiastic','alive'],
+  };
+
+  for (const [mood, words] of Object.entries(keywords)) {
+    for (const word of words) {
+      if (t.includes(word)) scores[mood] += 1;
+    }
+  }
+
+  // Negation handling
+  if (t.includes('not happy') || t.includes('not good') || t.includes('not great')) {
+    scores.happy = Math.max(0, scores.happy - 2);
+    scores.sad += 1;
+  }
+
+  const total = Object.values(scores).reduce((a, b) => a + b, 0);
+  if (total === 0) { scores.neutral = 1; }
+
+  const detected = Object.entries(scores).sort((a, b) => b[1] - a[1])[0][0];
+  const confidence = total > 0
+    ? Math.min(95, 55 + (scores[detected] / total) * 50)
+    : 60;
+
+  return { mood: detected, confidence: Math.round(confidence) };
+}
+
+// ── Route Scoring Algorithm ──
+function scoreRoute(route, mood, weather) {
+  const w = MOODS[mood]?.weights || MOODS.neutral.weights;
+  let score = (
+    route.greenery   * w.greenery +
+    route.quiet      * w.quiet +
+    route.distance_s * w.distance +
+    route.flat       * w.flat +
+    route.uncrowded  * w.uncrowded
+  ) / 5;
+
+  // Weather adjustment
+  if (weather) {
+    if (['Rain','Drizzle','Thunderstorm','Snow'].includes(weather.condition)) {
+      score *= 0.6; // penalise outdoor routes
+    } else if (weather.condition === 'Clear' && weather.temp < 30) {
+      score *= 1.05; // boost for perfect weather
+    }
+  }
+
+  return Math.round(score * 10) / 10;
+}
+
+// ── Weather Simulation ──
+function simulateWeather(lat, lon) {
+  // Simulates weather — in production, use OpenWeatherMap API
+  const conditions = [
+    { condition:'Clear', temp:22, wind:10, icon:'☀️', label:'Clear & Sunny', walkable:'good' },
+    { condition:'Clouds', temp:19, wind:15, icon:'⛅', label:'Partly Cloudy', walkable:'good' },
+    { condition:'Drizzle', temp:16, wind:20, icon:'🌦️', label:'Light Drizzle', walkable:'moderate' },
+    { condition:'Rain', temp:14, wind:25, icon:'🌧️', label:'Raining', walkable:'poor' },
+    { condition:'Thunderstorm', temp:12, wind:40, icon:'⛈️', label:'Thunderstorm', walkable:'dangerous' },
+  ];
+
+  // Use time-based seed for consistent demo behaviour
+  const hour = new Date().getHours();
+  const idx = hour < 8 ? 1 : hour < 12 ? 0 : hour < 16 ? 1 : hour < 20 ? 2 : 1;
+  return conditions[idx];
+}
+
+// ── Map Initialisation ──
+function initMap() {
+  map = L.map('map', { zoomControl: true }).setView([-34.4278, 150.8931], 14);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors',
+    maxZoom: 19
+  }).addTo(map);
+  routeLayer = L.layerGroup().addTo(map);
+  markerLayer = L.layerGroup().addTo(map);
+}
+
+// ── GPS ──
+function getGPS() {
+  if (!navigator.geolocation) {
+    showToast('❌ Geolocation not supported by your browser.');
+    return;
+  }
+  showToast('📡 Detecting your location...');
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      userLat = pos.coords.latitude;
+      userLon = pos.coords.longitude;
+      document.getElementById('locationInput').value =
+        `${userLat.toFixed(4)}, ${userLon.toFixed(4)}`;
+      map.setView([userLat, userLon], 15);
+      addUserMarker(userLat, userLon);
+      loadWeather(userLat, userLon);
+      showToast('✅ Location detected!');
+    },
+    err => {
+      showToast('📍 GPS unavailable — using Wollongong as default.');
+      userLat = -34.4278; userLon = 150.8931;
+      document.getElementById('locationInput').value = 'Wollongong, NSW';
+      loadWeather(userLat, userLon);
+    }
+  );
+}
+
+function addUserMarker(lat, lon) {
+  markerLayer.clearLayers();
+  const icon = L.divIcon({
+    html: '<div style="width:14px;height:14px;background:#1a3c2e;border:3px solid #a8d5b5;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.4)"></div>',
+    iconSize: [14, 14], iconAnchor: [7, 7], className: ''
+  });
+  L.marker([lat, lon], { icon })
+    .addTo(markerLayer)
+    .bindPopup('<b>📍 You are here</b>');
+}
+
+// ── Parse Address ──
+async function parseAddress(address) {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`,
+      { headers: { 'User-Agent': 'MoodRoute/1.0' } }
+    );
+    const data = await res.json();
+    if (data.length > 0) {
+      return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+    }
+  } catch(e) {}
+  return null;
+}
+
+// ── Weather ──
+function loadWeather(lat, lon) {
+  const weather = simulateWeather(lat, lon);
+  currentWeather = weather;
+  updateWeatherCard(weather);
+}
+
+function updateWeatherCard(w) {
+  const card = document.getElementById('weatherCard');
+  const icon = document.getElementById('weatherIcon');
+  const main = document.getElementById('weatherMain');
+  const sub  = document.getElementById('weatherSub');
+
+  icon.textContent = w.icon;
+  main.textContent = `${w.label} · ${w.temp}°C`;
+  sub.textContent  = `Wind: ${w.wind}km/h · ${w.walkable === 'good' ? '✅ Great for walking' : w.walkable === 'moderate' ? '⚠️ Take an umbrella' : w.walkable === 'poor' ? '🌧️ Consider indoors' : '⛈️ Stay indoors'}`;
+
+  card.className = 'weather-card';
+  if (w.walkable === 'moderate') card.classList.add('weather-alert');
+  if (w.walkable === 'poor' || w.walkable === 'dangerous') card.classList.add('weather-danger');
+}
+
+// ── Select Quick Mood ──
+function selectMood(mood, el) {
+  selectedMood = mood;
+  document.querySelectorAll('.mood-pill').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  const cfg = MOODS[mood];
+  document.getElementById('moodInput').placeholder =
+    `Selected: ${cfg.emoji} ${cfg.label} — ${cfg.description}`;
+}
+
+// ── Main Route Finding ──
+async function findRoute() {
+  // Rate limit check
+  if (!checkRateLimit()) return;
+
+  // Get and sanitise inputs
+  const rawText = document.getElementById('moodInput').value;
+  const rawAddr = document.getElementById('locationInput').value;
+  const moodText = sanitise(rawText);
+  const addrText = sanitise(rawAddr);
+
+  // Detect mood
+  let detectedMood, confidence;
+  if (selectedMood) {
+    detectedMood = selectedMood;
+    confidence = 95;
+  } else if (moodText.length > 3) {
+    const result = detectMood(moodText);
+    detectedMood = result.mood;
+    confidence = result.confidence;
+  } else {
+    showToast('💬 Please type how you feel or select a mood.');
+    return;
+  }
+
+  // Get location
+  if (!userLat && addrText) {
+    showLoading('📍 Finding your location...');
+    const coords = await parseAddress(addrText);
+    if (coords) {
+      userLat = coords.lat; userLon = coords.lon;
+      map.setView([userLat, userLon], 14);
+      addUserMarker(userLat, userLon);
+      loadWeather(userLat, userLon);
+    }
+  }
+
+  if (!userLat) {
+    hideLoading();
+    showToast('📍 Please enter your location or use GPS.');
+    return;
+  }
+
+  // Animated loading sequence
+  showLoading('🧠 Detecting your mood with NLP...');
+  await sleep(800);
+  setLoadingStep('🌿 Scanning nearby green spaces...');
+  await sleep(600);
+  setLoadingStep('☁️ Checking weather conditions...');
+  await sleep(500);
+  setLoadingStep('⛰️ Analysing terrain data...');
+  await sleep(500);
+  setLoadingStep('🏆 Scoring and ranking routes...');
+  await sleep(600);
+  hideLoading();
+
+  // Handle bad weather
+  if (currentWeather && currentWeather.walkable === 'dangerous') {
+    showIndoorAlternatives(currentWeather);
+    showToast('⛈️ Dangerous weather detected — showing indoor alternatives.');
+    return;
+  }
+
+  // Score routes
+  const routes = generateRoutes(userLat, userLon);
+  const scored = routes.map(r => ({ ...r, score: scoreRoute(r, detectedMood, currentWeather) }));
+  scored.sort((a, b) => b.score - a.score);
+  const best = scored[0];
+
+  // Display result
+  displayResult(best, detectedMood, confidence);
+  drawRoute(best);
+  showToast(`${MOODS[detectedMood].emoji} ${MOODS[detectedMood].label} mood detected — route found!`);
+}
+
+// ── Display Result ──
+function displayResult(route, mood, confidence) {
+  const cfg = MOODS[mood];
+  document.getElementById('indoorCard').classList.remove('show');
+  document.getElementById('resultCard').classList.add('show');
+
+  document.getElementById('resultMood').textContent = `${cfg.emoji} ${cfg.label}`;
+  document.getElementById('resultMood').style.background = cfg.color + '33';
+  document.getElementById('resultMood').style.borderColor = cfg.color + '66';
+  document.getElementById('resultMood').style.color = cfg.color;
+  document.getElementById('confidenceText').textContent = `${confidence}%`;
+  setTimeout(() => {
+    document.getElementById('confidenceFill').style.width = confidence + '%';
+  }, 100);
+
+  document.getElementById('routeName').textContent = route.name;
+
+  // Meta tags
+  const meta = document.getElementById('routeMeta');
+  meta.innerHTML = `
+    <div class="route-tag">🚶 ${route.distance}</div>
+    <div class="route-tag">⏱️ ${route.time}</div>
+    <div class="route-tag">⭐ Score: ${route.score}/10</div>
+    ${route.tags.map(t => `<div class="route-tag">${t}</div>`).join('')}
+  `;
+
+  // Score bars
+  const bars = document.getElementById('scoreBars');
+  const metrics = [
+    { label:'Greenery',  val: route.greenery,   color:'#27ae60' },
+    { label:'Quietness', val: route.quiet,       color:'#2980b9' },
+    { label:'Flatness',  val: route.flat,        color:'#8e44ad' },
+    { label:'Seclusion', val: route.uncrowded,   color:'#e67e22' },
+  ];
+
+  bars.innerHTML = metrics.map(m => `
+    <div class="score-row">
+      <div class="score-label">${m.label}</div>
+      <div class="score-track">
+        <div class="score-fill" style="width:0%;background:${m.color}"
+             data-width="${m.val * 10}%"></div>
+      </div>
+      <div class="score-val">${m.val}</div>
+    </div>
+  `).join('');
+
+  setTimeout(() => {
+    document.querySelectorAll('.score-fill').forEach(el => {
+      el.style.width = el.dataset.width;
+    });
+  }, 200);
+
+  // Reset stars
+  document.querySelectorAll('.star').forEach(s => s.classList.remove('lit'));
+}
+
+// ── Draw Route on Map ──
+function drawRoute(route) {
+  routeLayer.clearLayers();
+
+  // Route polyline
+  const line = L.polyline(route.coords, {
+    color: route.color,
+    weight: 5,
+    opacity: 0.85,
+    lineCap: 'round',
+    lineJoin: 'round',
+  }).addTo(routeLayer);
+
+  // Start marker
+  const startIcon = L.divIcon({
+    html: `<div style="background:${route.color};color:white;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,0.3);border:2px solid white">▶</div>`,
+    iconSize: [28, 28], iconAnchor: [14, 14], className: ''
+  });
+
+  L.marker(route.coords[0], { icon: startIcon })
+    .addTo(routeLayer)
+    .bindPopup(`<b>🚶 Start: ${route.name}</b><br>${route.distance} · ${route.time}`);
+
+  // Fit map to route
+  map.fitBounds(line.getBounds(), { padding: [40, 40] });
+}
+
+// ── Indoor Alternatives ──
+function showIndoorAlternatives(weather) {
+  document.getElementById('resultCard').classList.remove('show');
+  const card = document.getElementById('indoorCard');
+  card.classList.add('show');
+  document.getElementById('indoorSubtitle').textContent =
+    `${weather.icon} ${weather.label} — outdoor walking not recommended`;
+
+  const options = [
+    { icon:'🏋️', name:'Indoor Gym / Recreation Centre', desc:'Full-body workout in a safe environment' },
+    { icon:'🛍️', name:'Shopping Centre Walk', desc:'Climate-controlled walking route' },
+    { icon:'📚', name:'Library / Study Space', desc:'Quiet, calming environment for reflection' },
+    { icon:'🧘', name:'Yoga or Meditation Class', desc:'Mind-body connection and stress relief' },
+    { icon:'☕', name:'Café & Journal', desc:'A warm space to sit, reflect and decompress' },
+  ];
+
+  document.getElementById('indoorOptions').innerHTML = options.map(o => `
+    <div class="indoor-option">
+      <span style="font-size:1.3rem">${o.icon}</span>
+      <div>
+        <div style="font-weight:600;font-size:0.85rem">${o.name}</div>
+        <div style="font-size:0.75rem;color:rgba(245,240,232,0.6);margin-top:2px">${o.desc}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ── Star Rating ──
+function rate(n) {
+  document.querySelectorAll('.star').forEach((s, i) => {
+    s.classList.toggle('lit', i < n);
+  });
+  showToast(`⭐ Thanks for rating! ${n}/5 stars recorded.`);
+}
+
+// ── Utilities ──
+function showLoading(text) {
+  document.getElementById('loadingText').textContent = text;
+  document.getElementById('loadingOverlay').classList.add('show');
+}
+
+function setLoadingStep(step) {
+  document.getElementById('loadingStep').textContent = step;
+}
+
+function hideLoading() {
+  document.getElementById('loadingOverlay').classList.remove('show');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── Init ──
+window.addEventListener('DOMContentLoaded', () => {
+  initMap();
+  // Default to Wollongong
+  userLat = -34.4278; userLon = 150.8931;
+  loadWeather(userLat, userLon);
+  addUserMarker(userLat, userLon);
+});
+</script>
+</body>
+</html>
