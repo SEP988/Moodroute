@@ -780,3 +780,117 @@ body {
 .header-ticker {
   display: none;
 }
+
+/* ── NAVIGATION STYLES ───────────────────────────────────── */
+
+/* Start Navigation button */
+.btn-start-nav {
+  width: 100%;
+  margin-top: 0.6rem;
+  padding: 0.8rem;
+  background: linear-gradient(135deg, #1abc9c, #16a085);
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  font-family: 'DM Serif Display', serif;
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  box-shadow: 0 3px 12px rgba(26,188,156,0.35);
+  transition: all 0.2s;
+}
+
+.btn-start-nav:hover  { transform: translateY(-1px); box-shadow: 0 5px 16px rgba(26,188,156,0.45); }
+.btn-start-nav:active { transform: translateY(0); }
+.btn-start-nav.hidden { display: none; }
+
+/* Navigation bar — shows remaining distance + stop button */
+.nav-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(135deg, #1a3c2e, #1abc9c);
+  border-radius: 10px;
+  padding: 0.65rem 0.9rem;
+  margin-top: 0.6rem;
+  animation: slideUp 0.3s ease;
+}
+
+.nav-bar.hidden { display: none; }
+
+.nav-bar__info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nav-bar__label {
+  font-size: 0.68rem;
+  color: rgba(168,213,181,0.75);
+  font-family: 'DM Sans', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.nav-bar__distance {
+  font-family: 'DM Serif Display', serif;
+  font-size: 1.3rem;
+  color: #ffffff;
+  line-height: 1;
+}
+
+.nav-bar__stop {
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.3);
+  color: #ffffff;
+  padding: 0.45rem 0.9rem;
+  border-radius: 8px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s;
+}
+
+.nav-bar__stop:hover { background: rgba(255,255,255,0.28); }
+
+/* Arrived message */
+.nav-arrived {
+  margin-top: 0.6rem;
+  padding: 0.75rem;
+  background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+  border: 1.5px solid #10b981;
+  border-radius: 10px;
+  text-align: center;
+  font-family: 'DM Serif Display', serif;
+  font-size: 1.1rem;
+  color: #065f46;
+  animation: slideUp 0.4s ease;
+}
+
+.nav-arrived.hidden { display: none; }
+
+/* Live navigation user dot — bigger and pulsing */
+.nav-user-dot {
+  position: relative;
+  width: 22px;
+  height: 22px;
+}
+
+.nav-user-dot__pulse {
+  width: 22px;
+  height: 22px;
+  background: #1abc9c;
+  border: 3px solid #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(26,188,156,0.6);
+  animation: nav-dot-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes nav-dot-pulse {
+  0%, 100% { box-shadow: 0 2px 8px rgba(26,188,156,0.6), 0 0 0 0 rgba(26,188,156,0.4); }
+  50%       { box-shadow: 0 2px 8px rgba(26,188,156,0.6), 0 0 0 10px rgba(26,188,156,0); }
+}

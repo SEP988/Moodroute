@@ -12,6 +12,9 @@ const MoodRouteApp = {
     selectedMood:    null,
     currentWeather:  null,
     currentRoute:    null,
+    // Navigation state
+    _navWatchId:     null,   // watchPosition ID — null when not navigating
+    _navRouteCoords: [],     // full route coordinates used during navigation
 
     // ── Init ─────────────────────────────────────────────────────────────
     start() {
@@ -23,8 +26,44 @@ const MoodRouteApp = {
         this.setupToggle('inputBox',  'inputBoxHandle');
         this.setupToggle('resultBox', 'resultBoxHandle');
         this.setupToggle('indoorBox', 'indoorBoxHandle');
-        this.loadWeather(this.currentLocation.lat, this.currentLocation.lng);
-        MapManager.addUserMarker(this.currentLocation.lat, this.currentLocation.lng);
+
+        // Request GPS location immediately on app open.
+        // This prompts the user for permission right away so it is ready
+        // before they click Find My Route.
+        this.requestLocationOnStartup();
+    },
+
+    // ── Request GPS immediately on startup ───────────────────────────────
+    requestLocationOnStartup() {
+        if (!navigator.geolocation) {
+            // No GPS support — use UOW default and load weather for it
+            this.loadWeather(this.currentLocation.lat, this.currentLocation.lng);
+            MapManager.addUserMarker(this.currentLocation.lat, this.currentLocation.lng);
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const lat = position.coords.latitude;
+                const lng = position.coords.longitude;
+                this.currentLocation = { lat, lng };
+
+                // Update map and location input with real position
+                MapManager.addUserMarker(lat, lng);
+                MapManager.setView(lat, lng, 15);
+                document.getElementById('locationInput').value =
+                    `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+
+                // Load weather for real location
+                this.loadWeather(lat, lng);
+            },
+            () => {
+                // Permission denied or unavailable — use UOW default silently
+                this.loadWeather(this.currentLocation.lat, this.currentLocation.lng);
+                MapManager.addUserMarker(this.currentLocation.lat, this.currentLocation.lng);
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+        );
     },
 
     // ── Detect mobile ────────────────────────────────────────────────────
@@ -165,6 +204,10 @@ const MoodRouteApp = {
         // Back buttons
         document.getElementById('backBtn').addEventListener('click', () => this.resetToInput());
         document.getElementById('indoorBackBtn').addEventListener('click', () => this.resetToInput());
+
+        // Navigation buttons
+        document.getElementById('startNavBtn').addEventListener('click', () => this.startNavigation());
+        document.getElementById('stopNavBtn').addEventListener('click',  () => this.stopNavigation());
     },
 
     // ── Mood pill selection ──────────────────────────────────────────────
@@ -415,8 +458,134 @@ const MoodRouteApp = {
         this.showToast('⛈️ Dangerous weather — indoor alternatives shown');
     },
 
+    // ── Start navigation ─────────────────────────────────────────────────
+    startNavigation() {
+        if (!this.currentRoute) {
+            this.showToast('No route to navigate. Find a route first.');
+            return;
+        }
+        if (!navigator.geolocation) {
+            this.showToast('GPS not available on this device.');
+            return;
+        }
+
+        const coords = this.currentRoute.coordinates;
+        if (!coords || coords.length < 2) {
+            this.showToast('Route data unavailable for navigation.');
+            return;
+        }
+
+        this._navRouteCoords = coords;
+
+        // Start map navigation mode
+        MapManager.startNavigation(coords);
+
+        // Show nav bar, hide start button
+        document.getElementById('navBar').classList.remove('hidden');
+        document.getElementById('startNavBtn').classList.add('hidden');
+        document.getElementById('navArrived').classList.add('hidden');
+        document.getElementById('backBtn').classList.add('hidden');
+
+        this.showToast('🧭 Navigation started — follow the green path');
+
+        // Start watching GPS position
+        this._navWatchId = navigator.geolocation.watchPosition(
+            (position) => this._onNavGPSUpdate(position),
+            (error)    => {
+                this.showToast('GPS error — check location permissions');
+                this.stopNavigation();
+            },
+            {
+                enableHighAccuracy: true,
+                maximumAge:         2000,   // accept cached position up to 2 seconds old
+                timeout:            10000
+            }
+        );
+    },
+
+    // ── Called on every GPS update during navigation ──────────────────────
+    _onNavGPSUpdate(position) {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+
+        // Update current location for other purposes
+        this.currentLocation = { lat, lng };
+
+        // Update MapManager — get remaining distance and arrival status back
+        const { remainingMetres, arrived } = MapManager.updateNavigation(lat, lng);
+
+        // Update the remaining distance display
+        const distEl = document.getElementById('navDistance');
+        if (distEl) {
+            distEl.textContent = remainingMetres >= 1000
+                ? `${(remainingMetres / 1000).toFixed(1)} km`
+                : `${remainingMetres} m`;
+        }
+
+        // Handle arrival
+        if (arrived) {
+            this._onArrived();
+        }
+    },
+
+    // ── User has arrived at destination ──────────────────────────────────
+    _onArrived() {
+        // Stop GPS watching
+        if (this._navWatchId !== null) {
+            navigator.geolocation.clearWatch(this._navWatchId);
+            this._navWatchId = null;
+        }
+
+        // Show arrived message, hide nav bar
+        document.getElementById('navArrived').classList.remove('hidden');
+        document.getElementById('navBar').classList.add('hidden');
+        document.getElementById('backBtn').classList.remove('hidden');
+
+        this.showToast('🎉 You have arrived!');
+    },
+
+    // ── Stop navigation ───────────────────────────────────────────────────
+    stopNavigation() {
+        // Stop GPS watching
+        if (this._navWatchId !== null) {
+            navigator.geolocation.clearWatch(this._navWatchId);
+            this._navWatchId = null;
+        }
+
+        // Stop map navigation mode
+        MapManager.stopNavigation();
+
+        // Restore UI
+        document.getElementById('navBar').classList.add('hidden');
+        document.getElementById('navArrived').classList.add('hidden');
+        document.getElementById('startNavBtn').classList.remove('hidden');
+        document.getElementById('backBtn').classList.remove('hidden');
+
+        this._navRouteCoords = [];
+
+        // Redraw the original static route
+        if (this.currentRoute && this.currentRoute.coordinates) {
+            const startName = this.currentRoute.start_point || 'UOW Campus';
+            const endName   = this.currentRoute.end_point   || 'Destination';
+            MapManager.drawRoute(this.currentRoute.coordinates, '#1a3c2e', startName, endName);
+            MapManager.fitToRoute(this.currentRoute.coordinates);
+        }
+
+        this.showToast('Navigation stopped');
+    },
+
     // ── Reset: hide result, show input box ───────────────────────────────
     resetToInput() {
+        // Always stop navigation if active when going back
+        if (this._navWatchId !== null) {
+            navigator.geolocation.clearWatch(this._navWatchId);
+            this._navWatchId = null;
+            MapManager.stopNavigation();
+        }
+        // Reset nav UI state
+        document.getElementById('navBar').classList.add('hidden');
+        document.getElementById('navArrived').classList.add('hidden');
+        document.getElementById('startNavBtn').classList.remove('hidden');
         const inputBox  = document.getElementById('inputBox');
         const resultBox = document.getElementById('resultBox');
         const indoorBox = document.getElementById('indoorBox');

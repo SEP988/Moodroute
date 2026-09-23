@@ -51,26 +51,49 @@ class OSRMService:
             print(f"[OSRM] Service unavailable: {osrm_error}")
             return None
 
-    def get_path_for_route(self, route: dict) -> list:
+    def get_path_for_route(self, route: dict, user_lat: float = None, user_lng: float = None) -> list:
         """Get real walking path for a database route.
 
-        Uses first and last coordinate as start/end, fetches OSRM path between them.
-        Falls back to seed coordinates if OSRM fails.
+        If user_lat/user_lng are provided, routes from the user's actual
+        location to the destination. Otherwise falls back to the seed start.
         """
         route_coordinates = route.get("coordinates", [])
         if not route_coordinates or len(route_coordinates) < 2:
             return route_coordinates
 
-        start_point = route_coordinates[0]
+        # The destination is always the last seed coordinate
         end_point = route_coordinates[-1]
 
+        # Use user's real location as start if provided, else use seed start
+        if user_lat is not None and user_lng is not None:
+            start_lat, start_lng = user_lat, user_lng
+        else:
+            start_lat, start_lng = route_coordinates[0][0], route_coordinates[0][1]
+
         real_path = self.get_walking_path(
-            start_lat=start_point[0], start_lng=start_point[1],
+            start_lat=start_lat, start_lng=start_lng,
             end_lat=end_point[0], end_lng=end_point[1]
         )
 
         if real_path and len(real_path) >= 2:
             return real_path
 
-        print(f"[OSRM] Using seed coordinates for route '{route.get('name')}'")
-        return route_coordinates
+        # OSRM failed — return an interpolated path so the map never shows
+        # a straight line. Generate 20 intermediate points between start and end.
+        print(f"[OSRM] Using interpolated fallback for route '{route.get('name')}'")
+        return self._interpolate_path(start_lat, start_lng, end_point[0], end_point[1], steps=20)
+
+    def _interpolate_path(self, lat1: float, lng1: float, lat2: float, lng2: float, steps: int = 20) -> list:
+        """Generate a straight interpolated path with multiple waypoints.
+
+        This is only used when OSRM is unreachable. It is not a real road path
+        but it avoids a jarring straight line by providing a smooth curve with
+        enough points for Leaflet to render the polyline smoothly.
+        """
+        path = []
+        for i in range(steps + 1):
+            fraction = i / steps
+            lat = lat1 + (lat2 - lat1) * fraction
+            lng = lng1 + (lng2 - lng1) * fraction
+            path.append([round(lat, 6), round(lng, 6)])
+        return path

@@ -154,7 +154,26 @@
       </div>
     </div>
 
+    <!-- Start Navigation button -->
+    <button class="btn-start-nav" id="startNavBtn" type="button">
+      🧭 Start Navigation
+    </button>
+
     <button class="btn-back" id="backBtn" type="button">← Try different mood</button>
+
+    <!-- Navigation bar (shown during active navigation) -->
+    <div class="nav-bar hidden" id="navBar">
+      <div class="nav-bar__info">
+        <span class="nav-bar__label">Remaining</span>
+        <span class="nav-bar__distance" id="navDistance">-- m</span>
+      </div>
+      <button class="nav-bar__stop" id="stopNavBtn" type="button">⏹ Stop</button>
+    </div>
+
+    <!-- Arrived overlay (shown when user reaches destination) -->
+    <div class="nav-arrived hidden" id="navArrived">
+      🎉 You have arrived!
+    </div>
 
   </div>
 </div>

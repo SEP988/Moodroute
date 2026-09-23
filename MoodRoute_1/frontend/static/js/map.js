@@ -23,9 +23,13 @@ const MapManager = {
 
         L.control.zoom({ position: 'topright' }).addTo(this.map);
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-            maxZoom: 19
+        // OpenStreetMap France (Humanitarian) tiles — completely free,
+        // no API key, no IP restrictions, works on both local and Render.
+        // Uses a different subdomain from the main OSM servers that blocked us.
+        L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap France | &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+            subdomains: 'abc',
+            maxZoom: 20
         }).addTo(this.map);
 
         this.boundaryLayer = L.layerGroup().addTo(this.map);
@@ -195,5 +199,188 @@ const MapManager = {
 
     invalidateSize() {
         if (this.map) setTimeout(() => this.map.invalidateSize(), 100);
+    },
+
+    // ════════════════════════════════════════════════════════════════════
+    // LIVE NAVIGATION
+    // ════════════════════════════════════════════════════════════════════
+
+    // Internal navigation state
+    _navActive:        false,
+    _navCoordinates:   [],   // full route waypoints [[lat,lng], ...]
+    _navNextIndex:     0,    // index of the next unwalked waypoint
+    _navRemainingLayer: null, // Leaflet layer for the remaining path
+    _navUserNavMarker:  null, // large navigation dot
+
+    /**
+     * Start navigation mode.
+     * @param {Array} coordinates - full route [[lat,lng], ...]
+     */
+    startNavigation(coordinates) {
+        if (!coordinates || coordinates.length < 2) return;
+
+        this._navActive       = true;
+        this._navCoordinates  = coordinates;
+        this._navNextIndex    = 0;
+
+        // Create a separate layer for the remaining path
+        if (this._navRemainingLayer) {
+            this.map.removeLayer(this._navRemainingLayer);
+        }
+        this._navRemainingLayer = L.layerGroup().addTo(this.map);
+
+        // Draw the full remaining path initially
+        this._drawRemainingPath(0);
+
+        // Hide the original static route so only the live remaining path shows
+        if (this.routeLayer) this.routeLayer.clearLayers();
+    },
+
+    /**
+     * Called on every GPS update during navigation.
+     * Moves the user dot, pans the map, trims the walked portion.
+     * @param {number} lat
+     * @param {number} lng
+     * @returns {object} { remainingMetres, arrived }
+     */
+    updateNavigation(lat, lng) {
+        if (!this._navActive) return { remainingMetres: 0, arrived: false };
+
+        // Move / create the navigation user marker
+        this._updateNavMarker(lat, lng);
+
+        // Pan map to keep user centred
+        this.map.setView([lat, lng], 17, { animate: true });
+
+        // Find the nearest waypoint ahead and advance _navNextIndex
+        this._navNextIndex = this._findNextWaypoint(lat, lng, this._navNextIndex);
+
+        // Redraw only the remaining path from that waypoint onward
+        this._drawRemainingPath(this._navNextIndex);
+
+        // Calculate remaining distance
+        const remainingMetres = this._calcRemainingDistance(lat, lng, this._navNextIndex);
+
+        // Arrival check: within 30 metres of the final waypoint
+        const endPoint = this._navCoordinates[this._navCoordinates.length - 1];
+        const distToEnd = this._haversineMetres(lat, lng, endPoint[0], endPoint[1]);
+        const arrived = distToEnd < 30;
+
+        return { remainingMetres: Math.round(remainingMetres), arrived };
+    },
+
+    /**
+     * Stop navigation — clean up all navigation layers and state.
+     */
+    stopNavigation() {
+        this._navActive = false;
+
+        if (this._navRemainingLayer) {
+            this.map.removeLayer(this._navRemainingLayer);
+            this._navRemainingLayer = null;
+        }
+        if (this._navUserNavMarker) {
+            this.map.removeLayer(this._navUserNavMarker);
+            this._navUserNavMarker = null;
+        }
+
+        this._navCoordinates = [];
+        this._navNextIndex   = 0;
+    },
+
+    // ── Private navigation helpers ────────────────────────────────────────
+
+    _updateNavMarker(lat, lng) {
+        const navIcon = L.divIcon({
+            className: '',
+            html: '<div class="nav-user-dot"><div class="nav-user-dot__pulse"></div></div>',
+            iconSize: [22, 22],
+            iconAnchor: [11, 11]
+        });
+        if (this._navUserNavMarker) {
+            this._navUserNavMarker.setLatLng([lat, lng]);
+        } else {
+            this._navUserNavMarker = L.marker([lat, lng], { icon: navIcon, zIndexOffset: 1000 })
+                .addTo(this.map);
+        }
+    },
+
+    _drawRemainingPath(fromIndex) {
+        if (!this._navRemainingLayer) return;
+        this._navRemainingLayer.clearLayers();
+
+        const remaining = this._navCoordinates.slice(fromIndex);
+        if (remaining.length < 2) return;
+
+        // Remaining path — bright teal so it's clearly visible
+        L.polyline(remaining, {
+            color: '#1abc9c',
+            weight: 6,
+            opacity: 0.95,
+            lineCap: 'round',
+            lineJoin: 'round'
+        }).addTo(this._navRemainingLayer);
+
+        // End marker stays visible
+        const endPoint = this._navCoordinates[this._navCoordinates.length - 1];
+        L.marker(endPoint, {
+            icon: L.divIcon({
+                className: 'route-marker-container',
+                html: '<div class="route-marker route-marker--end">⚑</div>',
+                iconSize: [28, 28],
+                iconAnchor: [14, 14]
+            })
+        }).addTo(this._navRemainingLayer);
+    },
+
+    /**
+     * Find the index of the nearest waypoint that is ahead of the user.
+     * Searches forward from currentIndex to avoid jumping backwards.
+     */
+    _findNextWaypoint(userLat, userLng, currentIndex) {
+        const coords = this._navCoordinates;
+        const searchAhead = Math.min(currentIndex + 20, coords.length - 1);
+        let bestIndex = currentIndex;
+        let bestDist  = Infinity;
+
+        for (let i = currentIndex; i <= searchAhead; i++) {
+            const d = this._haversineMetres(userLat, userLng, coords[i][0], coords[i][1]);
+            if (d < bestDist) {
+                bestDist  = d;
+                bestIndex = i;
+            }
+        }
+        // Only advance, never go back
+        return Math.max(currentIndex, bestIndex);
+    },
+
+    /**
+     * Sum of straight-line segments from user position to the end.
+     */
+    _calcRemainingDistance(userLat, userLng, fromIndex) {
+        const coords = this._navCoordinates;
+        if (fromIndex >= coords.length - 1) return 0;
+
+        // Distance from user to the next waypoint
+        let total = this._haversineMetres(userLat, userLng, coords[fromIndex][0], coords[fromIndex][1]);
+
+        // Sum subsequent waypoint-to-waypoint distances
+        for (let i = fromIndex; i < coords.length - 1; i++) {
+            total += this._haversineMetres(coords[i][0], coords[i][1], coords[i + 1][0], coords[i + 1][1]);
+        }
+        return total;
+    },
+
+    /**
+     * Haversine distance in metres between two lat/lng points.
+     */
+    _haversineMetres(lat1, lng1, lat2, lng2) {
+        const R  = 6371000; // Earth radius in metres
+        const φ1 = lat1 * Math.PI / 180;
+        const φ2 = lat2 * Math.PI / 180;
+        const Δφ = (lat2 - lat1) * Math.PI / 180;
+        const Δλ = (lng2 - lng1) * Math.PI / 180;
+        const a  = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     }
 };
